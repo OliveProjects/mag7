@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mag7 Index · Olive Projects</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #08090d; }
+        .back-link {
+            position: fixed;
+            top: 20px; left: 20px;
+            z-index: 9999;
+            color: rgba(255,255,255,0.35);
+            text-decoration: none;
+            font-family: monospace;
+            font-size: 12px;
+            letter-spacing: 0.1em;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: rgba(255,255,255,0.8); }
+    </style>
+</head>
+<body>
+    <a href="https://oliveprojects.eu" class="back-link">← Olive Projects</a>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ── Static data (analyst consensus + beta — updated manually) ──────────
+        const ANALYST = {
+          MSFT:  { buy:59, hold:3,  sell:0,  target:559.96 },
+          AAPL:  { buy:33, hold:15, sell:3,  target:316.07 },
+          NVDA:  { buy:66, hold:4,  sell:1,  target:309.01 },
+          AMZN:  { buy:68, hold:3,  sell:0,  target:317.41 },
+          GOOGL: { buy:62, hold:10, sell:0,  target:433.46 },
+          META:  { buy:64, hold:6,  sell:0,  target:822.34 },
+          TSLA:  { buy:23, hold:22, sell:8,  target:395.20 },
+        };
+
+        const ACCENT = {
+          MSFT:"#00a3e0", AAPL:"#c0c0c0", NVDA:"#76b900",
+          AMZN:"#ff9900", GOOGL:"#4285f4", META:"#0082fb", TSLA:"#e31937",
+        };
+
+        const COL_INFO = {
+          peg:           { label:"PEG – Pris/Tillväxt",          short:"P/E justerat för vinsttillväxt",          long:"PEG = P/E delat med EPS-tillväxt. PEG 1.0 = rimligt värderad, under 1.0 = potentiellt undervärderad. Löser P/E's problem med tillväxtbolag – NVDA med PEG 1.5 är billigare än vad P/E 56 antyder." },
+          upside:        { label:"Uppsida",                       short:"Analytikernas förväntade kursuppgång",    long:"Riktkurs minus nuvarande kurs i procent. +30% = analytikerna tror aktien stiger 30% kommande år. Analytiker tenderar att vara optimistiska." },
+          scoreDeviation:{ label:"Konsensus-avvikelse",           short:"Hur nära perfekt analytikerkonsensus",   long:"Vi viktar rekommendationerna till 1–5 (5=alla säger köp) och visar avvikelsen från max. 0.00 = total enighet om köp. Lägre = starkare konsensus." },
+          buyPct:        { label:"Köp%",                          short:"Andel analytiker som säger köp",          long:"Hur stor andel av analytikerna som aktivt rekommenderar köp." },
+          roe:           { label:"ROE – Avkastning på kapital",   short:"Buffetts kvalitetsmått",                  long:"Return on Equity visar hur effektivt bolaget skapar vinst med ägarnas pengar. Warren Buffett söker konsekvent ROE över 15%." },
+          grossMargin:   { label:"Bruttomarginal",                short:"Mungers pricing power-mått",              long:"Andelen av intäkterna som blir kvar efter direkta kostnader. Hög marginal = stark marknadsposition. Meta 81% vs Tesla 18% är en enorm skillnad." },
+          revenueGrowth: { label:"Omsättningstillväxt",           short:"Intäktstillväxt senaste räkenskapsåret",  long:"Hur snabbt bolaget växer sin omsättning. Tillväxt driver framtida vinster och motiverar höga P/E-tal." },
+          rsi:           { label:"RSI – Relativ styrka",          short:"Teknisk ingångssignal (beräknad live)",   long:"Beräknad från 30 dagars stängningskurser via Wilders metod (14 perioder). Mäter om aktien är överköpt (>70) eller översåld (<30). Närmast 50 = neutralt momentum." },
+          beta:          { label:"Beta – Volatilitet",            short:"Hur mycket aktien svänger",               long:"Beta 1.0 = rör sig i takt med marknaden. Tesla 2.31 = svänger mer än dubbelt så mycket. Under 1.0 = stabilare än index." },
+        };
+
+        const MODES = {
+          value: {
+            label:"Köpvärde", icon:"⚖️",
+            headline:"Du söker bästa totala köpvärde",
+            desc:"Alla mått vägs lika. Identifierar bolag som kombinerar rimlig värdering (PEG), stark analytikerkonsensus och god fundamental kvalitet.",
+            ignores:null,
+            weights:{ peg:1, upside:1, scoreDeviation:1, buyPct:1, roe:1, grossMargin:1, revenueGrowth:1, rsi:1, beta:0 },
+          },
+          lowrisk: {
+            label:"Lägst risk", icon:"🛡️",
+            headline:"Du prioriterar stabilitet och trygghet",
+            desc:"Beta och konsensus väger tyngst. Bolag som svänger lite, har starkt analytikerstöd och bevisad lönsamhet rankas upp.",
+            ignores:"Uppsida och tillväxt ignoreras – potential utan stabilitet räknas inte här.",
+            weights:{ peg:1, upside:0, scoreDeviation:2, buyPct:2, roe:2, grossMargin:2, revenueGrowth:0, rsi:1, beta:3 },
+          },
+          riskreward: {
+            label:"Bäst risk/reward", icon:"🎯",
+            headline:"Du söker bäst möjlig avkastning för risken",
+            desc:"Uppsida, tillväxt och konsensus väger tyngst. RSI används för att hitta bra teknisk ingångspunkt.",
+            ignores:null,
+            weights:{ peg:1, upside:3, scoreDeviation:2, buyPct:2, roe:1, grossMargin:1, revenueGrowth:2, rsi:2, beta:1 },
+          },
+        };
+
+        // ── Enrichment & ranking ───────────────────────────────────────────────
+        function enrich(stocks) {
+          return stocks.map(s => {
+            const a     = ANALYST[s.ticker] || s;
+            const total = (a.buy || s.buy) + (a.hold || s.hold) + (a.sell || s.sell);
+            const buy   = a.buy  || s.buy;
+            const hold  = a.hold || s.hold;
+            const sell  = a.sell || s.sell;
+            const target = a.target || s.target;
+            const buyPct  = Math.round((buy  / total) * 100);
+            const holdPct = Math.round((hold / total) * 100);
+            const sellPct = 100 - buyPct - holdPct;
+            const upside  = target && s.price ? ((target - s.price) / s.price) * 100 : null;
+            const score   = (buy * 5 + hold * 3 + sell * 1) / total;
+            const scoreDeviation = parseFloat((5 - score).toFixed(2));
+            return { ...s, total, buyPct, holdPct, sellPct, upside, score, scoreDeviation, target };
+          });
+        }
+
+        function rankArr(rows, key, asc) {
+          const sorted = [...rows].sort((a, b) => {
+            const av = a[key] != null ? a[key] : (asc ? 99999 : -99999);
+            const bv = b[key] != null ? b[key] : (asc ? 99999 : -99999);
+            return asc ? av - bv : bv - av;
+          });
+          return Object.fromEntries(sorted.map((r, i) => [r.ticker, i + 1]));
+        }
+
+        function addRanks(rows, mode) {
+          const w    = MODES[mode].weights;
+          const rPEG = rankArr(rows, "peg",           true);
+          const rUp  = rankArr(rows, "upside",         false);
+          const rSc  = rankArr(rows, "scoreDeviation", true);
+          const rBuy = rankArr(rows, "buyPct",         false);
+          const rROE = rankArr(rows, "roe",            false);
+          const rGM  = rankArr(rows, "grossMargin",    false);
+          const rRG  = rankArr(rows, "revenueGrowth",  false);
+          const rBeta= rankArr(rows, "beta",           true);
+          const rsiS = [...rows].sort((a, b) => Math.abs(a.rsi - 50) - Math.abs(b.rsi - 50));
+          const rRSI = Object.fromEntries(rsiS.map((r, i) => [r.ticker, i + 1]));
+
+          return rows.map(r => {
+            const ind = {
+              rankPEG:rPEG[r.ticker], rankUpside:rUp[r.ticker], rankScore:rSc[r.ticker],
+              rankBuyPct:rBuy[r.ticker], rankROE:rROE[r.ticker], rankGM:rGM[r.ticker],
+              rankRG:rRG[r.ticker], rankRSI:rRSI[r.ticker], rankBeta:rBeta[r.ticker],
+            };
+            const total = parseFloat((
+              (w.peg           ? ind.rankPEG    * w.peg           : 0) +
+              (w.upside        ? ind.rankUpside * w.upside        : 0) +
+              (w.scoreDeviation? r.scoreDeviation*w.scoreDeviation: 0) +
+              (w.buyPct        ? ind.rankBuyPct * w.buyPct        : 0) +
+              (w.roe           ? ind.rankROE    * w.roe           : 0) +
+              (w.grossMargin   ? ind.rankGM     * w.grossMargin   : 0) +
+              (w.revenueGrowth ? ind.rankRG     * w.revenueGrowth : 0) +
+              (w.rsi           ? ind.rankRSI    * w.rsi           : 0) +
+              (w.beta          ? ind.rankBeta   * w.beta          : 0)
+            ).toFixed(1));
+            return { ...r, ...ind, totalRank: total };
+          });
+        }
+
+        const rankColor = r => r<=1?"#00e676":r<=2?"#69f0ae":r<=4?"#fff176":r<=6?"#ff8a65":"#ff5252";
+
+        // ── Sub-components ─────────────────────────────────────────────────────
+        function Tooltip({ info, children }) {
+          const [show, setShow] = useState(false);
+          return (
+            <span style={{ position:"relative", display:"inline-flex", alignItems:"center", gap:3 }}
+              onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+              {children}
+              <span style={{ width:13, height:13, borderRadius:"50%", background:"rgba(255,255,255,0.08)", display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace", fontSize:9, color:"rgba(255,255,255,0.35)", cursor:"help" }}>?</span>
+              {show && (
+                <div style={{ position:"absolute", bottom:"calc(100% + 8px)", left:"50%", transform:"translateX(-50%)", zIndex:999, width:240, background:"#1c1f28", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"12px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.7)", pointerEvents:"none" }}>
+                  <div style={{ fontFamily:"sans-serif", fontSize:12, fontWeight:700, color:"#eef0f3", marginBottom:3 }}>{info.label}</div>
+                  <div style={{ fontFamily:"monospace", fontSize:10, color:"#00a3e0", marginBottom:6 }}>{info.short}</div>
+                  <div style={{ fontFamily:"sans-serif", fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.55 }}>{info.long}</div>
+                </div>
+              )}
+            </span>
+          );
+        }
+
+        function RankBadge({ r }) {
+          return <span style={{ display:"inline-block", minWidth:22, height:22, lineHeight:"22px", textAlign:"center", borderRadius:4, background:`${rankColor(r)}22`, color:rankColor(r), fontFamily:"monospace", fontSize:12, fontWeight:700, flexShrink:0 }}>{r}</span>;
+        }
+
+        function AnalystBar({ buyPct, holdPct, sellPct }) {
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:4, minWidth:100 }}>
+              <div style={{ display:"flex", height:5, borderRadius:3, overflow:"hidden", gap:1 }}>
+                <div style={{ width:`${buyPct}%`, background:"#00e676" }} />
+                <div style={{ width:`${holdPct}%`, background:"#ffeb3b" }} />
+                <div style={{ width:`${sellPct}%`, background:"#ff5252" }} />
+              </div>
+              <div style={{ display:"flex", gap:6, fontFamily:"monospace", fontSize:10 }}>
+                <span style={{ color:"#00e676" }}>{buyPct}% köp</span>
+                <span style={{ color:"#ffeb3b" }}>{holdPct}% behåll</span>
+                <span style={{ color:"#ff5252" }}>{sellPct}% sälj</span>
+              </div>
+            </div>
+          );
+        }
+
+        function formatTime(iso) {
+          if (!iso) return null;
+          try {
+            return new Date(iso).toLocaleTimeString("sv-SE", { hour:"2-digit", minute:"2-digit" });
+          } catch { return null; }
+        }
+
+        // ── Main component ─────────────────────────────────────────────────────
+        function Mag7Table() {
+          const [data,    setData]    = useState(null);
+          const [status,  setStatus]  = useState("Laddar data...");
+          const [mode,    setMode]    = useState("value");
+          const [sortCol, setSortCol] = useState("totalRank");
+          const [sortDir, setSortDir] = useState(1);
+          const [hovered, setHovered] = useState(null);
+
+          useEffect(() => {
+            // Cache-bust with current minute so data refreshes every 15 min
+            const bust = Math.floor(Date.now() / (15 * 60 * 1000));
+            fetch(`./data/mag7.json?v=${bust}`)
+              .then(r => r.json())
+              .then(json => {
+                setData(json);
+                const t = formatTime(json.lastYahooUpdate);
+                setStatus(t ? `Uppdaterad ${t}` : "Data laddad");
+              })
+              .catch(() => setStatus("Kunde inte ladda data"));
+          }, []);
+
+          if (!data) {
+            return (
+              <div style={{ minHeight:"100vh", background:"#08090d", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <div style={{ fontFamily:"monospace", fontSize:13, color:"rgba(255,255,255,0.3)" }}>{status}</div>
+              </div>
+            );
+          }
+
+          const enriched    = enrich(data.stocks);
+          const ranked      = addRanks(enriched, mode);
+          const w           = MODES[mode].weights;
+          const rankOrder   = [...ranked].sort((a, b) => a.totalRank - b.totalRank);
+          const positionMap = Object.fromEntries(rankOrder.map((r, i) => [r.ticker, i + 1]));
+          const sorted      = [...ranked].sort((a, b) => sortDir * ((a[sortCol] ?? 9999) - (b[sortCol] ?? 9999)));
+
+          const handleSort = col => {
+            if (sortCol === col) setSortDir(d => -d);
+            else { setSortCol(col); setSortDir(1); }
+          };
+
+          const thBase  = { padding:"10px 10px", textAlign:"right", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"monospace", fontSize:10, letterSpacing:"0.07em", userSelect:"none", borderBottom:"1px solid rgba(255,255,255,0.06)", transition:"color 0.2s" };
+          const thColor = (col, key) => key && w[key]===0 ? "rgba(255,255,255,0.15)" : sortCol===col ? "#00a3e0" : "rgba(255,255,255,0.32)";
+          const arr     = col => sortCol===col ? (sortDir===1?" ↑":" ↓") : "";
+
+          return (
+            <div style={{ minHeight:"100vh", background:"#08090d", color:"#eef0f3", padding:"60px 12px 48px",
+              backgroundImage:"radial-gradient(ellipse 55% 35% at 5% 0%,rgba(0,163,224,0.07) 0%,transparent 70%),radial-gradient(ellipse 40% 55% at 95% 100%,rgba(118,185,0,0.05) 0%,transparent 70%)" }}>
+              <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
+                @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+                .trow{transition:background 0.12s;}.trow:hover{background:rgba(255,255,255,0.045)!important;}
+                ::-webkit-scrollbar{height:4px;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+              `}</style>
+
+              <div style={{ maxWidth:1440, margin:"0 auto" }}>
+
+                {/* Header */}
+                <div style={{ marginBottom:24, animation:"fadeUp 0.4s ease both" }}>
+                  <div style={{ fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.25)", letterSpacing:"0.2em", marginBottom:8 }}>MAGNIFICENT SEVEN · ANALYST TRACKER</div>
+                  <h1 style={{ fontFamily:"'Sora',sans-serif", fontSize:"clamp(24px,4vw,38px)", fontWeight:700, letterSpacing:"-0.03em" }}>
+                    Mag<span style={{ color:"#00a3e0" }}>7</span> <span style={{ fontWeight:300, color:"rgba(255,255,255,0.4)" }}>Index</span>
+                  </h1>
+                  <div style={{ fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:8 }}>
+                    {status} · Håll över <span style={{ color:"rgba(255,255,255,0.5)" }}>?</span> för förklaring · Klicka kolumn för sortering
+                  </div>
+                </div>
+
+                {/* Mode toggles */}
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.28)", letterSpacing:"0.12em", marginBottom:10 }}>VÄLJ RANKINGLÄGE</div>
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:12 }}>
+                    {Object.entries(MODES).map(([key, m]) => {
+                      const active = mode === key;
+                      return (
+                        <button key={key} onClick={() => { setMode(key); setSortCol("totalRank"); setSortDir(1); }} style={{
+                          padding:"11px 18px", borderRadius:12, cursor:"pointer",
+                          background: active ? "rgba(0,163,224,0.15)" : "rgba(255,255,255,0.04)",
+                          border:     active ? "1px solid rgba(0,163,224,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                          color:      active ? "#00a3e0" : "rgba(255,255,255,0.5)",
+                          fontFamily:"'Sora',sans-serif", fontWeight: active ? 700 : 400, fontSize:13, transition:"all 0.2s",
+                        }}>
+                          {m.icon} {m.label}
+                          <div style={{ fontFamily:"monospace", fontSize:9, marginTop:3, opacity:0.6, fontWeight:400 }}>
+                            {key==="value"?"Balanserad":key==="lowrisk"?"Stabilitet":"Potential"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ padding:"12px 16px", background:"rgba(255,255,255,0.025)", borderLeft:"3px solid #00a3e0", borderRadius:"0 8px 8px 0", marginBottom:10 }}>
+                    <div style={{ fontFamily:"'Sora',sans-serif", fontSize:13, fontWeight:600, color:"#eef0f3", marginBottom:4 }}>{MODES[mode].headline}</div>
+                    <div style={{ fontFamily:"sans-serif", fontSize:12, color:"rgba(255,255,255,0.45)", lineHeight:1.5 }}>{MODES[mode].desc}</div>
+                    {MODES[mode].ignores && <div style={{ fontFamily:"monospace", fontSize:10, color:"#ff8a65", marginTop:6 }}>⚠ {MODES[mode].ignores}</div>}
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {Object.entries(COL_INFO).map(([k, info]) => {
+                      const wv = w[k] ?? 0;
+                      return (
+                        <div key={k} style={{
+                          padding:"3px 10px", borderRadius:20, fontFamily:"monospace", fontSize:10,
+                          background: wv===0?"rgba(255,255,255,0.03)":wv>=3?"rgba(0,230,118,0.1)":wv>=2?"rgba(255,235,59,0.08)":"rgba(255,255,255,0.05)",
+                          border:     wv===0?"1px solid rgba(255,255,255,0.05)":wv>=3?"1px solid rgba(0,230,118,0.25)":wv>=2?"1px solid rgba(255,235,59,0.2)":"1px solid rgba(255,255,255,0.08)",
+                          color:      wv===0?"rgba(255,255,255,0.18)":wv>=3?"#00e676":wv>=2?"#fff176":"rgba(255,255,255,0.45)",
+                        }}>
+                          {info.label.split("–")[0].trim()} {wv===0?"av":"×"+wv}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div style={{ overflowX:"auto", borderRadius:14, border:"1px solid rgba(255,255,255,0.07)" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontFamily:"'Sora',sans-serif" }}>
+                    <thead>
+                      <tr style={{ background:"rgba(255,255,255,0.025)" }}>
+                        <th style={{ padding:"10px 16px", textAlign:"left", fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.32)", letterSpacing:"0.08em", borderBottom:"1px solid rgba(255,255,255,0.06)", whiteSpace:"nowrap" }}>BOLAG</th>
+                        <th onClick={() => handleSort("price")} style={{...thBase, color:thColor("price",null)}}>{"KURS"+arr("price")}</th>
+                        <th style={{...thBase, color:"rgba(255,255,255,0.18)", cursor:"default"}}>P/E</th>
+                        <th onClick={() => handleSort("peg")} style={{...thBase, color:thColor("peg","peg")}}><Tooltip info={COL_INFO.peg}><span>{"PEG"+arr("peg")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("upside")} style={{...thBase, color:thColor("upside","upside")}}><Tooltip info={COL_INFO.upside}><span>{"UPPSIDA"+arr("upside")}</span></Tooltip></th>
+                        <th style={{ padding:"10px 10px", textAlign:"left", fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.32)", borderBottom:"1px solid rgba(255,255,255,0.06)", whiteSpace:"nowrap" }}>ANALYTIKER</th>
+                        <th onClick={() => handleSort("buyPct")} style={{...thBase, color:thColor("buyPct","buyPct")}}><Tooltip info={COL_INFO.buyPct}><span>{"KÖP%"+arr("buyPct")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("scoreDeviation")} style={{...thBase, color:thColor("scoreDeviation","scoreDeviation")}}><Tooltip info={COL_INFO.scoreDeviation}><span>{"KONSENSUS"+arr("scoreDeviation")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("roe")} style={{...thBase, color:thColor("roe","roe")}}><Tooltip info={COL_INFO.roe}><span>{"ROE%"+arr("roe")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("grossMargin")} style={{...thBase, color:thColor("grossMargin","grossMargin")}}><Tooltip info={COL_INFO.grossMargin}><span>{"BRUTTOMARG."+arr("grossMargin")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("revenueGrowth")} style={{...thBase, color:thColor("revenueGrowth","revenueGrowth")}}><Tooltip info={COL_INFO.revenueGrowth}><span>{"REV.TILLVÄXT"+arr("revenueGrowth")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("rsi")} style={{...thBase, color:thColor("rsi","rsi")}}><Tooltip info={COL_INFO.rsi}><span>{"RSI"+arr("rsi")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("beta")} style={{...thBase, color:thColor("beta","beta")}}><Tooltip info={COL_INFO.beta}><span>{"BETA"+arr("beta")}</span></Tooltip></th>
+                        <th onClick={() => handleSort("totalRank")} style={{...thBase, color:thColor("totalRank",null)}}>{"TOTALRANK"+arr("totalRank")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((r, i) => {
+                        const pos = positionMap[r.ticker];
+                        const tc  = rankColor(pos);
+                        return (
+                          <tr key={r.ticker} className="trow"
+                            onMouseEnter={() => setHovered(r.ticker)}
+                            onMouseLeave={() => setHovered(null)}
+                            style={{ background: hovered===r.ticker?"rgba(255,255,255,0.04)":i%2===0?"rgba(255,255,255,0.012)":"transparent", borderBottom:"1px solid rgba(255,255,255,0.04)", animation:`fadeUp 0.4s ease ${i*0.05}s both` }}>
+
+                            <td style={{ padding:"13px 16px", whiteSpace:"nowrap" }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                <div style={{ width:3, height:30, borderRadius:2, background:ACCENT[r.ticker], flexShrink:0 }} />
+                                <div>
+                                  <div style={{ fontWeight:600, fontSize:13 }}>{r.name}</div>
+                                  <div style={{ fontFamily:"monospace", fontSize:10, color:ACCENT[r.ticker], letterSpacing:"0.1em", marginTop:1 }}>{r.ticker}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap" }}>
+                              <span style={{ fontFamily:"monospace", fontSize:13, fontWeight:600 }}>${r.price != null ? r.price.toFixed(2) : "–"}</span>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:0.35 }}>
+                              <span style={{ fontFamily:"monospace", fontSize:13 }}>{r.pe != null ? r.pe.toFixed(1) : "–"}</span>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.peg===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13, color: r.peg!=null?(r.peg<1?"#00e676":r.peg<2?"#fff176":r.peg<3?"#ff8a65":"#ff5252"):"rgba(255,255,255,0.2)" }}>
+                                  {r.peg != null ? r.peg.toFixed(2) : "–"}
+                                </span>
+                                <RankBadge r={r.rankPEG} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.upside===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13, color:r.upside!=null?(r.upside>0?"#00e676":"#ff5252"):"rgba(255,255,255,0.2)" }}>
+                                  {r.upside!=null?(r.upside>0?"+":"")+r.upside.toFixed(1)+"%":"–"}
+                                </span>
+                                <RankBadge r={r.rankUpside} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px" }}>
+                              <AnalystBar buyPct={r.buyPct} holdPct={r.holdPct} sellPct={r.sellPct} />
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.buyPct===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13, color:"#00e676" }}>{r.buyPct}%</span>
+                                <RankBadge r={r.rankBuyPct} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.scoreDeviation===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <div style={{ textAlign:"right" }}>
+                                  <div style={{ fontFamily:"monospace", fontSize:13 }}>{r.score.toFixed(2)}</div>
+                                  <div style={{ fontFamily:"monospace", fontSize:10, color:(5-r.score)<0.3?"#00e676":(5-r.score)<1?"#ffeb3b":"#ff5252" }}>−{r.scoreDeviation.toFixed(2)}</div>
+                                </div>
+                                <RankBadge r={r.rankScore} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.roe===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13 }}>{r.roe != null ? r.roe.toFixed(1)+"%" : "–"}</span>
+                                <RankBadge r={r.rankROE} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.grossMargin===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13 }}>{r.grossMargin != null ? r.grossMargin.toFixed(1)+"%" : "–"}</span>
+                                <RankBadge r={r.rankGM} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.revenueGrowth===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13, color:r.revenueGrowth!=null?(r.revenueGrowth>20?"#00e676":r.revenueGrowth>5?"#fff176":r.revenueGrowth>=0?"#ff8a65":"#ff5252"):"rgba(255,255,255,0.2)" }}>
+                                  {r.revenueGrowth!=null?(r.revenueGrowth>0?"+":"")+r.revenueGrowth.toFixed(1)+"%":"–"}
+                                </span>
+                                <RankBadge r={r.rankRG} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.rsi===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <div style={{ textAlign:"right" }}>
+                                  <div style={{ fontFamily:"monospace", fontSize:13, color:r.rsi>70?"#ff5252":r.rsi<30?"#00e676":r.rsi>60?"#ff8a65":"#fff176" }}>{r.rsi ?? "–"}</div>
+                                  <div style={{ fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.3)" }}>{r.rsi>70?"Överköpt":r.rsi<30?"Översåld":"Neutral"}</div>
+                                </div>
+                                <RankBadge r={r.rankRSI} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 10px", textAlign:"right", whiteSpace:"nowrap", opacity:w.beta===0?0.25:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+                                <span style={{ fontFamily:"monospace", fontSize:13, color:r.beta<1?"#00e676":r.beta<1.5?"#fff176":r.beta<2?"#ff8a65":"#ff5252" }}>{r.beta.toFixed(2)}</span>
+                                <RankBadge r={r.rankBeta} />
+                              </div>
+                            </td>
+
+                            <td style={{ padding:"13px 16px", textAlign:"right", whiteSpace:"nowrap" }}>
+                              <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", minWidth:46, height:38, borderRadius:8, padding:"0 8px", background:`${tc}18`, border:`1px solid ${tc}44`, fontFamily:"monospace", fontSize:14, fontWeight:700, color:tc }}>
+                                {r.totalRank.toFixed(1)}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ marginTop:16, display:"flex", flexWrap:"wrap", gap:"6px 20px", fontFamily:"monospace", fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                  <span>● Data uppdateras var 15:e minut under marknadstid</span>
+                  <span>● Rankingbadge: <span style={{color:"#00e676"}}>1=bäst</span> → <span style={{color:"#ff5252"}}>7=sämst</span></span>
+                  <span>● Kurser + RSI: Yahoo Finance · PEG, ROE, marginaler, tillväxt: FMP</span>
+                  <span>● P/E visas för referens men ingår ej i ranking — PEG används</span>
+                  <span>● Analytikerkonsensus: manuellt uppdaterad</span>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<Mag7Table />);
+    </script>
+</body>
+</html>

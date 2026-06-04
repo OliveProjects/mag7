@@ -1,0 +1,39 @@
+name: Update Mag7 Market Data
+
+on:
+  schedule:
+    # Every 15 min, 13:00–21:00 UTC on weekdays
+    # Covers 9 AM–5 PM ET (both EDT/UTC-4 and EST/UTC-5)
+    - cron: '*/15 13-21 * * 1-5'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch market data
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python scripts/fetch_data.py
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/mag7.json
+          git diff --cached --quiet && echo "No changes" || (
+            git commit -m "chore: update market data [skip ci]" &&
+            git push
+          )
