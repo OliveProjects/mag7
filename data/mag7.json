@@ -1,18 +1,18 @@
 {
   "lastFmpUpdate": "2026-06-04T19:23:20Z",
-  "lastYahooUpdate": "2026-06-04T19:23:20Z",
-  "generatedAt": "2026-06-04T19:23:20Z",
+  "lastYahooUpdate": "2026-06-04T19:30:23Z",
+  "generatedAt": "2026-06-04T19:30:23Z",
   "stocks": [
     {
       "ticker": "MSFT",
       "name": "Microsoft",
-      "price": 428.13,
+      "price": 427.42,
       "pe": 36.6,
       "peg": 2.34,
       "roe": 37.9,
       "grossMargin": 69.8,
       "revenueGrowth": 14.9,
-      "rsi": 53,
+      "rsi": 52,
       "beta": 0.9,
       "buy": 59,
       "hold": 3,
@@ -22,7 +22,7 @@
     {
       "ticker": "AAPL",
       "name": "Apple",
-      "price": 312.05,
+      "price": 311.85,
       "pe": 36.2,
       "peg": 2.8,
       "roe": 160.6,
@@ -38,7 +38,7 @@
     {
       "ticker": "NVDA",
       "name": "NVIDIA",
-      "price": 220.36,
+      "price": 220.22,
       "pe": 56.5,
       "peg": 1.5,
       "roe": 123.8,
@@ -54,7 +54,7 @@
     {
       "ticker": "AMZN",
       "name": "Amazon",
-      "price": 254.24,
+      "price": 253.82,
       "pe": 35.2,
       "peg": 1.8,
       "roe": 22.1,
@@ -70,7 +70,7 @@
     {
       "ticker": "GOOGL",
       "name": "Alphabet",
-      "price": 371.0,
+      "price": 371.26,
       "pe": 27.4,
       "peg": 1.4,
       "roe": 32.4,
@@ -86,7 +86,7 @@
     {
       "ticker": "META",
       "name": "Meta",
-      "price": 626.05,
+      "price": 624.16,
       "pe": 27.7,
       "peg": 1.1,
       "roe": 36.8,
@@ -102,7 +102,7 @@
     {
       "ticker": "TSLA",
       "name": "Tesla",
-      "price": 419.67,
+      "price": 419.9,
       "pe": 296.9,
       "peg": 8.5,
       "roe": 10.7,
