@@ -60,19 +60,19 @@
         };
 
         const MODES = {
-          value: {
-            label:"Köpvärde", icon:"⚖️",
-            headline:"Du söker bästa totala köpvärde",
-            desc:"Alla mått vägs lika. Identifierar bolag som kombinerar rimlig värdering (PEG), stark analytikerkonsensus och god fundamental kvalitet.",
-            ignores:null,
-            weights:{ peg:1, upside:1, scoreDeviation:1, buyPct:1, roe:1, grossMargin:1, revenueGrowth:1, rsi:1, beta:0 },
-          },
           lowrisk: {
             label:"Lägst risk", icon:"🛡️",
             headline:"Du prioriterar stabilitet och trygghet",
             desc:"Beta och konsensus väger tyngst. Bolag som svänger lite, har starkt analytikerstöd och bevisad lönsamhet rankas upp.",
             ignores:"Uppsida och tillväxt ignoreras – potential utan stabilitet räknas inte här.",
             weights:{ peg:1, upside:0, scoreDeviation:2, buyPct:2, roe:2, grossMargin:2, revenueGrowth:0, rsi:1, beta:3 },
+          },
+          value: {
+            label:"Köpvärde", icon:"⚖️",
+            headline:"Du söker bästa totala köpvärde",
+            desc:"Alla mått vägs lika. Identifierar bolag som kombinerar rimlig värdering (PEG), stark analytikerkonsensus och god fundamental kvalitet.",
+            ignores:null,
+            weights:{ peg:1, upside:1, scoreDeviation:1, buyPct:1, roe:1, grossMargin:1, revenueGrowth:1, rsi:1, beta:0 },
           },
           riskreward: {
             label:"Bäst risk/reward", icon:"🎯",
@@ -151,15 +151,23 @@
         function Tooltip({ info, children }) {
           const [show, setShow] = useState(false);
           return (
-            <span style={{ position:"relative", display:"inline-flex", alignItems:"center", gap:3 }}
+            <span style={{ position:"relative", display:"inline-flex", alignItems:"center", gap:5 }}
               onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
               {children}
-              <span style={{ width:13, height:13, borderRadius:"50%", background:"rgba(255,255,255,0.08)", display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace", fontSize:9, color:"rgba(255,255,255,0.35)", cursor:"help" }}>?</span>
+              <span style={{
+                width:16, height:16, borderRadius:"50%",
+                background: show ? "rgba(0,163,224,0.3)" : "rgba(255,255,255,0.1)",
+                border: "1px solid " + (show ? "rgba(0,163,224,0.7)" : "rgba(255,255,255,0.25)"),
+                display:"inline-flex", alignItems:"center", justifyContent:"center",
+                fontFamily:"monospace", fontSize:10, fontWeight:700,
+                color: show ? "#00a3e0" : "rgba(255,255,255,0.6)",
+                cursor:"help", transition:"all 0.15s", flexShrink:0,
+              }}>?</span>
               {show && (
-                <div style={{ position:"absolute", bottom:"calc(100% + 8px)", left:"50%", transform:"translateX(-50%)", zIndex:999, width:240, background:"#1c1f28", border:"1px solid rgba(255,255,255,0.12)", borderRadius:10, padding:"12px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.7)", pointerEvents:"none" }}>
-                  <div style={{ fontFamily:"sans-serif", fontSize:12, fontWeight:700, color:"#eef0f3", marginBottom:3 }}>{info.label}</div>
-                  <div style={{ fontFamily:"monospace", fontSize:10, color:"#00a3e0", marginBottom:6 }}>{info.short}</div>
-                  <div style={{ fontFamily:"sans-serif", fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.55 }}>{info.long}</div>
+                <div style={{ position:"absolute", bottom:"calc(100% + 10px)", left:"50%", transform:"translateX(-50%)", zIndex:999, width:260, background:"#12151e", border:"1px solid rgba(0,163,224,0.25)", borderRadius:12, padding:"14px 16px", boxShadow:"0 12px 40px rgba(0,0,0,0.8)", pointerEvents:"none" }}>
+                  <div style={{ fontFamily:"'Sora',sans-serif", fontSize:12, fontWeight:700, color:"#eef0f3", marginBottom:4 }}>{info.label}</div>
+                  <div style={{ fontFamily:"monospace", fontSize:10, color:"#00a3e0", marginBottom:8, letterSpacing:"0.02em" }}>{info.short}</div>
+                  <div style={{ fontFamily:"sans-serif", fontSize:11.5, color:"rgba(255,255,255,0.6)", lineHeight:1.65 }}>{info.long}</div>
                 </div>
               )}
             </span>
@@ -305,6 +313,12 @@
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Table hint */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, padding:"8px 14px", background:"rgba(0,163,224,0.06)", border:"1px solid rgba(0,163,224,0.15)", borderRadius:8 }}>
+                  <span style={{ width:16, height:16, borderRadius:"50%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", display:"inline-flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.6)", flexShrink:0 }}>?</span>
+                  <span style={{ fontFamily:"monospace", fontSize:11, color:"rgba(255,255,255,0.4)" }}>Håll muspekaren över <strong style={{color:"rgba(255,255,255,0.65)"}}>?</strong> bredvid en kolumnrubrik för att se förklaring · Klicka på rubrik för att sortera</span>
                 </div>
 
                 {/* Table */}
