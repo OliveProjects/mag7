@@ -1,0 +1,54 @@
+MAG7 INDEX — IDÉER & FRAMTIDA PARAMETRAR
+==========================================
+
+PARAMETRAR VI VALDE BORT (EJ IMPLEMENTERADE)
+----------------------------------------------
+
+P/B (Price-to-Book) — Graham's klassiker
+  Tanke: Köp aldrig över 1.5x book (Graham). Ger bild av om du betalar för substans eller luft.
+  Varför vi hoppade: Mag7 är immateriella bolag. Apple P/B ~50x, Meta ~9x — inte för att de är
+  dåliga, utan för att book value inte fångar varumärke, algoritmer, nätverkseffekter. Missvisande
+  ranking. Lämpligare för industribolag med fysiska tillgångar.
+
+Skuldsättning (Debt/Equity) — Graham's balansräkningskoll
+  Tanke: Hög skuld = klarar inte nedgångar. Enkelt men avgörande.
+  Varför vi väntade: Mer relevant för Mag7 än P/B (Alphabet och Meta nästan skuldfria, MSFT ok).
+  Kan läggas till senare utan stor risk för missvisning.
+  Källa: stable/ratios -> debtToEquityRatio (redan inläst i FMP-anropet)
+
+52-veckors avstånd från topp
+  Tanke: "Aktien handlas 28% under sin topp" — psykologiskt träffsäkert, intuitivt för
+  tekniska analytiker. Hur långt under peak handlas aktien?
+  Varför vi väntade: Inte implementerat ännu. Finns i FMP quote-svaret (52WeekHigh) eller Yahoo.
+  Formel: ((52w_high - price) / 52w_high) * 100 → negativ = rabatt mot topp
+
+Citat från Fear & Greed-appen
+  Tanke: Slumpmässigt citat i sidhuvudet för att ge verktyget mer personlighet. Inspirerat av
+  Buffett / Graham / Munger / Morgan Housel-citat som redan finns i Market Moood-appen.
+  Varför vi väntade: Estetik, låg prioritet just nu.
+
+
+PARAMETRAR SOM REDAN ÄR INNE OCH DERAS FILOSOFISKA GRUND
+----------------------------------------------------------
+
+ROE (Return on Equity)
+  Källa: Buffett. "Visa mig ett bolag med konsekvent ROE över 15% så har du hittat något."
+
+Bruttomarginal
+  Källa: Munger. "Pricing power" — hög och stabil marginal = konkurrensfördel (moat).
+  Meta ~81%, NVDA ~75%, Tesla ~18% — en enorm skillnad som berättar vad bolaget egentligen är.
+
+Beta
+  Källa: Morgan Housel, Pengars psykologi. Investeraren som sover gott om natten behöver detta.
+  Tesla 2.31 vs Microsoft 0.9 är inte samma investering oavsett vad fundamenta säger.
+
+RSI (Relative Strength Index)
+  Teknisk analys. Överköpt (>70) eller översåld (<30)? Enkel ingångssignal ovanpå fundamenta.
+  Beräknas från 30 dagars dagliga stängningskurser via Yahoo Finance (Wilders metod, 14 perioder).
+
+PEG (Price/Earnings to Growth)
+  Löser P/E:s problem med tillväxtbolag. NVDA med PEG 1.5 är billigare än P/E 56 antyder.
+  Graham använde P/E, men PEG är bättre för bolag med hög tillväxt.
+
+Analytikerkonsensus (Köp%, Konsensus-avvikelse)
+  Manuellt uppdaterad. Visar marknadssynen aggregerad från hundratals analytiker.
